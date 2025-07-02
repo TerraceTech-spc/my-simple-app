@@ -22,7 +22,7 @@ transform: scale(1);
 }
 </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
+<body class="bg-gray-900 text-white flex items-center justify-center h-screen relative">
 
 <!-- Main container for the quote generator -->
 <div class="w-full max-w-2xl mx-auto p-6 md:p-8 bg-gray-800 rounded-2xl shadow-2xl text-center">
@@ -48,6 +48,11 @@ New Quote
 
 </div>
 
+<!-- Version Indicator -->
+<div class="absolute bottom-4 right-4 text-xs text-gray-500">
+v3
+</div>
+
 <script>
 // --- JavaScript for the Quote Generator (API Version with History) ---
 
@@ -59,7 +64,8 @@ const newQuoteBtn = document.getElementById('new-quote-btn');
 // 2. Define the API endpoint and history tracking variables
 const quoteAPI = 'https://dummyjson.com/quotes/random';
 let recentQuoteIds = []; // Array to store the IDs of recent quotes
-const HISTORY_LIMIT = 25; // How many recent quotes to remember
+let recentAuthors = []; // Array to store the names of recent authors
+const HISTORY_LIMIT = 25; // How many recent items to remember
 
 // 3. Function to fetch a new unique quote from the API and display it.
 async function getNewQuote() {
@@ -81,23 +87,27 @@ throw new Error(`HTTP error! status: ${response.status}`);
 }
 quoteData = await response.json();
 
-// Check if the fetched quote's ID is in our history array
-if (!recentQuoteIds.includes(quoteData.id)) {
+// Check if BOTH the quote ID and the author are not in our history
+if (!recentQuoteIds.includes(quoteData.id) && !recentAuthors.includes(quoteData.author)) {
 uniqueQuoteFound = true;
 }
 attempts++;
 } while (!uniqueQuoteFound && attempts < 50); // Try up to 50 times
 
 if (!uniqueQuoteFound) {
-console.warn("Could not find a unique quote after 50 attempts. Displaying the last one fetched.");
+console.warn("Could not find a unique quote/author after 50 attempts. Displaying the last one fetched.");
 }
 
-// Add the new quote's ID to our history
+// Add the new quote's ID and author to our history
 recentQuoteIds.push(quoteData.id);
+recentAuthors.push(quoteData.author);
 
-// If the history is over the limit, remove the oldest quote ID (from the start of the array)
+// If the history is over the limit, remove the oldest items
 if (recentQuoteIds.length > HISTORY_LIMIT) {
 recentQuoteIds.shift();
+}
+if (recentAuthors.length > HISTORY_LIMIT) {
+recentAuthors.shift();
 }
 
 // Update the text content of the elements with data from the API
@@ -111,7 +121,6 @@ quoteTextElement.textContent = "Oops! Couldn't fetch a quote. Please try again."
 quoteAuthorElement.textContent = "";
 } finally {
 // This block always runs, ensuring the UI updates correctly.
-// We use a short delay to allow the fade-out transition to be visible.
 setTimeout(() => {
 quoteTextElement.style.opacity = 1;
 quoteAuthorElement.style.opacity = 1;
