@@ -1,0 +1,234 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, getDocs, query, where, limit, startAfter, orderBy } from 'firebase/firestore';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+
+// --- Firebase Configuration ---
+// These variables are provided by the environment.
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// --- Main App Component ---
+export default function App() {
+// --- State Management ---
+const [db, setDb] = useState(null);
+const [auth, setAuth] = useState(null);
+const [userId, setUserId] = useState(null);
+const [isAuthReady, setIsAuthReady] = useState(false);
+
+const [currentView, setCurrentView] = useState('random'); // 'random' or 'search'
+const [quote, setQuote] = useState({ text: 'Loading...', author: '' });
+const [searchResults, setSearchResults] = useState([]);
+const [isLoading, setIsLoading] = useState(true);
+const [error, setError] = useState('');
+const [lastVisible, setLastVisible] = useState(null); // For pagination in random quotes
+
+// --- Firebase Initialization and Auth ---
+useEffect(() => {
+try {
+const app = initializeApp(firebaseConfig);
+const firestoreDb = getFirestore(app);
+const firebaseAuth = getAuth(app);
+setDb(firestoreDb);
+setAuth(firebaseAuth);
+
+const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+if (user) {
+setUserId(user.uid);
+} else {
+// If no user, sign in. Use custom token if available, otherwise anonymously.
+try {
+if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+await signInWithCustomToken(firebaseAuth, __initial_auth_token);
+} else {
+await signInAnonymously(firebaseAuth);
+}
+} catch (authError) {
+console.error("Authentication failed:", authError);
+setError("Could not connect to the service.");
+}
+}
+setIsAuthReady(true);
+});
+return () => unsubscribe();
+} catch (e) {
+console.error("Firebase initialization failed:", e);
+setError("Application setup failed. Please refresh.");
+}
+}, []);
+
+// --- Data Fetching Functions ---
+const getNewQuote = useCallback(async () => {
+if (!db || !isAuthReady) return;
+setIsLoading(true);
+setError('');
+
+try {
+// To get a "random" quote, we fetch one document ordered by a random ID.
+// Firestore doesn't have a native "random" function, so this is a common workaround.
+const quotesRef = collection(db, `artifacts/${appId}/public/data/quotes`);
+const randomId = Math.random().toString(36).substring(2);
+
+let q = query(quotesRef, orderBy('__name__'), limit(1));
+if(lastVisible) {
+q = query(quotesRef, orderBy('__name__'), startAfter(lastVisible), limit(1));
+}
+
+const documentSnapshots = await getDocs(q);
+
+if (documentSnapshots.empty) {
+// If we run out of quotes, maybe start from the beginning
+setLastVisible(null);
+setQuote({ text: "You've seen all the quotes! Add more to the database or click again to start over.", author: "The App" });
+return;
+}
+
+const doc = documentSnapshots.docs[0];
+const quoteData = doc.data();
+setQuote({ text: `"${quoteData.quote}"`, author: `- ${quoteData.author}` });
+setLastVisible(doc);
+
+} catch (e) {
+console.error("Error fetching quote:", e);
+setError("Could not fetch a quote. The database might be empty. Please add quotes.");
+setQuote({ text: 'Could not fetch a quote. Is the database empty?', author: 'System' });
+} finally {
+setIsLoading(false);
+}
+}, [db, isAuthReady, lastVisible]);
+
+// --- Initial Quote Load ---
+useEffect(() => {
+if (db && isAuthReady) {
+getNewQuote();
+}
+}, [db, isAuthReady, getNewQuote]);
+
+
+const handleSearch = async (searchTerm) => {
+if (!db || !searchTerm) return;
+setIsLoading(true);
+setError('');
+setCurrentView('search');
+
+try {
+const quotesRef = collection(db, `artifacts/${appId}/public/data/quotes`);
+// Firestore doesn't support full-text search natively. This is a basic substring match.
+// For more advanced search, a dedicated service like Algolia would be used.
+// This implementation fetches all and filters, which is not scalable for large datasets.
+const querySnapshot = await getDocs(quotesRef);
+const allQuotes = querySnapshot.docs.map(doc => doc.data());
+
+const lowercasedTerm = searchTerm.toLowerCase();
+const results = allQuotes.filter(q =>
+q.quote.toLowerCase().includes(lowercasedTerm) ||
+q.author.toLowerCase().includes(lowercasedTerm)
+);
+
+setSearchResults(results);
+
+// If no results are found, log the failed search term
+if (results.length === 0) {
+const failedSearchesRef = collection(db, `artifacts/${appId}/public/data/failedSearches`);
+await addDoc(failedSearchesRef, {
+term: searchTerm,
+timestamp: new Date(),
+userId: userId || 'anonymous'
+});
+}
+} catch (e) {
+console.error("Search failed:", e);
+setError("Search failed. Please try again.");
+} finally {
+setIsLoading(false);
+}
+};
+
+const showRandomQuoteView = () => {
+setCurrentView('random');
+setError('');
+};
+
+// --- UI Components ---
+const SearchBar = () => {
+const [input, setInput] = useState('');
+const handleSubmit = (e) => {
+e.preventDefault();
+handleSearch(input);
+};
+return (
+<form onSubmit={handleSubmit} className="flex items-center gap-2 mb-4">
+<input
+type="search"
+value={input}
+onChange={(e) => setInput(e.target.value)}
+placeholder="Search by keyword or author..."
+className="w-full bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+/>
+<button type="submit" className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+Search
+</button>
+</form>
+);
+};
+
+const RandomQuoteView = () => (
+<div>
+<div className="min-h-[150px] flex flex-col justify-center text-center">
+<blockquote className="text-xl md:text-2xl italic text-gray-200 transition-opacity duration-500">
+{isLoading ? 'Loading...' : error || quote.text}
+</blockquote>
+<p className="mt-4 text-lg text-cyan-500 font-semibold transition-opacity duration-500">
+{!isLoading && !error && quote.author}
+</p>
+</div>
+<div className="mt-8 flex items-center justify-center gap-4">
+<button onClick={getNewQuote} className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+New Quote
+</button>
+</div>
+</div>
+);
+
+const SearchResultsView = () => (
+<div>
+<div className="flex justify-between items-center mb-2">
+<h2 className="text-xl font-bold text-gray-300">Search Results</h2>
+<button onClick={showRandomQuoteView} className="text-sm text-cyan-400 hover:underline">
+Back to Random
+</button>
+</div>
+<div id="search-results-container" className="space-y-4 overflow-y-auto pr-2" style={{ maxHeight: '45vh' }}>
+{isLoading ? (
+<p className="text-center text-gray-400">Searching...</p>
+) : error ? (
+<p className="text-center text-red-400">{error}</p>
+) : searchResults.length > 0 ? (
+searchResults.map((q, index) => (
+<div key={index} className="p-4 bg-gray-700 rounded-lg">
+<blockquote className="italic">"{q.quote}"</blockquote>
+<p className="text-right text-cyan-400 mt-2">- {q.author}</p>
+</div>
+))
+) : (
+<p className="text-center text-gray-400">No results found. Your search has been logged for future updates.</p>
+)}
+</div>
+</div>
+);
+
+return (
+<div className="bg-gray-900 text-white flex items-center justify-center h-screen relative p-4">
+<div className="w-full max-w-2xl mx-auto p-6 md:p-8 bg-gray-800 rounded-2xl shadow-2xl flex flex-col" style={{ height: '90vh', maxHeight: '700px' }}>
+<h1 className="text-3xl md:text-4xl font-bold text-cyan-400 mb-4 text-center">Smart Quote Finder</h1>
+<SearchBar />
+<div id="main-content" className="flex-grow flex flex-col justify-center overflow-y-auto">
+{currentView === 'random' ? <RandomQuoteView /> : <SearchResultsView />}
+</div>
+</div>
+<div className="absolute bottom-4 right-4 text-xs text-gray-500">
+v8.0-beta
+</div>
+</div>
+);
+}
