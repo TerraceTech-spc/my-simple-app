@@ -49,39 +49,60 @@ New Quote
 </div>
 
 <script>
-// --- JavaScript for the Quote Generator (API Version) ---
+// --- JavaScript for the Quote Generator (API Version with History) ---
 
-// 1. Get references to the HTML elements we need to interact with.
+// 1. Get references to the HTML elements
 const quoteTextElement = document.getElementById('quote-text');
 const quoteAuthorElement = document.getElementById('quote-author');
 const newQuoteBtn = document.getElementById('new-quote-btn');
 
-// 2. Define the API endpoint. This API is stable and does NOT require a proxy.
+// 2. Define the API endpoint and history tracking variables
 const quoteAPI = 'https://dummyjson.com/quotes/random';
+let recentQuoteIds = []; // Array to store the IDs of recent quotes
+const HISTORY_LIMIT = 25; // How many recent quotes to remember
 
-// 3. Function to fetch a new random quote from the API and display it.
+// 3. Function to fetch a new unique quote from the API and display it.
 async function getNewQuote() {
-// Disable the button to prevent multiple clicks while fetching
+// Disable button and fade out the current quote text
 newQuoteBtn.disabled = true;
-
-try {
-// Add a fade-out effect before fetching the new quote
 quoteTextElement.style.opacity = 0;
 quoteAuthorElement.style.opacity = 0;
 
-// 'await' pauses the function until the fetch request is complete.
+try {
+let uniqueQuoteFound = false;
+let quoteData;
+let attempts = 0; // Safety counter to prevent an infinite loop
+
+// Loop until we find a quote that isn't in our recent history
+do {
 const response = await fetch(quoteAPI);
 if (!response.ok) {
-// If the response is not successful, throw an error.
 throw new Error(`HTTP error! status: ${response.status}`);
 }
-// 'await' pauses the function until the JSON data is parsed.
-const data = await response.json();
+quoteData = await response.json();
+
+// Check if the fetched quote's ID is in our history array
+if (!recentQuoteIds.includes(quoteData.id)) {
+uniqueQuoteFound = true;
+}
+attempts++;
+} while (!uniqueQuoteFound && attempts < 50); // Try up to 50 times
+
+if (!uniqueQuoteFound) {
+console.warn("Could not find a unique quote after 50 attempts. Displaying the last one fetched.");
+}
+
+// Add the new quote's ID to our history
+recentQuoteIds.push(quoteData.id);
+
+// If the history is over the limit, remove the oldest quote ID (from the start of the array)
+if (recentQuoteIds.length > HISTORY_LIMIT) {
+recentQuoteIds.shift();
+}
 
 // Update the text content of the elements with data from the API
-// Note: The data structure is slightly different: data.quote and data.author
-quoteTextElement.textContent = `"${data.quote}"`;
-quoteAuthorElement.textContent = `- ${data.author}`;
+quoteTextElement.textContent = `"${quoteData.quote}"`;
+quoteAuthorElement.textContent = `- ${quoteData.author}`;
 
 } catch (error) {
 // If anything goes wrong in the 'try' block, this code runs.
@@ -89,18 +110,17 @@ console.error("Error fetching quote:", error);
 quoteTextElement.textContent = "Oops! Couldn't fetch a quote. Please try again.";
 quoteAuthorElement.textContent = "";
 } finally {
-// This code runs whether the fetch was successful or not.
-// Fade the new text back in after a short delay to allow the text to update
+// This block always runs, ensuring the UI updates correctly.
+// We use a short delay to allow the fade-out transition to be visible.
 setTimeout(() => {
 quoteTextElement.style.opacity = 1;
 quoteAuthorElement.style.opacity = 1;
-// Re-enable the button
-newQuoteBtn.disabled = false;
+newQuoteBtn.disabled = false; // Re-enable the button
 }, 200);
 }
 }
 
-// 4. Add an event listener to the button. When clicked, it will run our function.
+// 4. Add an event listener to the button.
 newQuoteBtn.addEventListener('click', getNewQuote);
 
 // 5. Display a quote when the page first loads.
