@@ -14,6 +14,12 @@
 body {
 font-family: 'Inter', sans-serif;
 }
+/* Style for when the button is disabled */
+#new-quote-btn:disabled {
+background-color: #5f9ea0; /* A muted cyan */
+cursor: not-allowed;
+transform: scale(1);
+}
 </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center h-screen">
@@ -28,6 +34,7 @@ font-family: 'Inter', sans-serif;
 <div class="min-h-[150px] flex flex-col justify-center">
 <blockquote id="quote-text" class="text-xl md:text-2xl italic text-gray-200 transition-opacity duration-500">
 <!-- Quote will be inserted here by JavaScript -->
+Loading...
 </blockquote>
 <p id="quote-author" class="mt-4 text-lg text-cyan-500 font-semibold transition-opacity duration-500">
 <!-- Author will be inserted here by JavaScript -->
@@ -35,67 +42,69 @@ font-family: 'Inter', sans-serif;
 </div>
 
 <!-- Button to generate a new quote -->
-<button id="new-quote-btn" class="mt-8 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-75">
+<button id="new-quote-btn" class="mt-8 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-75 disabled:bg-cyan-800 disabled:cursor-not-allowed disabled:transform-none">
 New Quote
 </button>
 
 </div>
 
 <script>
-// --- JavaScript for the Quote Generator ---
+// --- JavaScript for the Quote Generator (API Version) ---
 
 // 1. Get references to the HTML elements we need to interact with.
 const quoteTextElement = document.getElementById('quote-text');
 const quoteAuthorElement = document.getElementById('quote-author');
 const newQuoteBtn = document.getElementById('new-quote-btn');
 
-// 2. Create an array of quote objects. Each object has a text and an author.
-const quotes = [
-{ text: "The purpose of our lives is to be happy.", author: "Dalai Lama" },
-{ text: "Life is what happens when you're busy making other plans.", author: "John Lennon" },
-{ text: "Get busy living or get busy dying.", author: "Stephen King" },
-{ text: "You only live once, but if you do it right, once is enough.", author: "Mae West" },
-{ text: "Many of life's failures are people who did not realize how close they were to success when they gave up.", author: "Thomas A. Edison" },
-{ text: "If you want to live a happy life, tie it to a goal, not to people or things.", author: "Albert Einstein" },
-{ text: "Never let the fear of striking out keep you from playing the game.", author: "Babe Ruth" },
-{ text: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
-{ text: "In order to write about life first you must live it.", author: "Ernest Hemingway" },
-{ text: "The big lesson in life, baby, is never be scared of anyone or anything.", author: "Frank Sinatra" }
-];
+// 2. Define the API endpoint. This API is stable and does NOT require a proxy.
+const quoteAPI = 'https://dummyjson.com/quotes/random';
 
-let lastQuoteIndex = -1; // To make sure we don't show the same quote twice in a row
+// 3. Function to fetch a new random quote from the API and display it.
+async function getNewQuote() {
+// Disable the button to prevent multiple clicks while fetching
+newQuoteBtn.disabled = true;
 
-// 3. Function to get a new random quote and display it.
-function displayNewQuote() {
-let randomIndex;
-// Keep generating a random index until it's different from the last one
-do {
-randomIndex = Math.floor(Math.random() * quotes.length);
-} while (randomIndex === lastQuoteIndex);
-
-lastQuoteIndex = randomIndex; // Update the last index
-
-const randomQuote = quotes[randomIndex];
-
-// Add a fade-out effect before changing the text
+try {
+// Add a fade-out effect before fetching the new quote
 quoteTextElement.style.opacity = 0;
 quoteAuthorElement.style.opacity = 0;
 
+// 'await' pauses the function until the fetch request is complete.
+const response = await fetch(quoteAPI);
+if (!response.ok) {
+// If the response is not successful, throw an error.
+throw new Error(`HTTP error! status: ${response.status}`);
+}
+// 'await' pauses the function until the JSON data is parsed.
+const data = await response.json();
+
+// Update the text content of the elements with data from the API
+// Note: The data structure is slightly different: data.quote and data.author
+quoteTextElement.textContent = `"${data.quote}"`;
+quoteAuthorElement.textContent = `- ${data.author}`;
+
+} catch (error) {
+// If anything goes wrong in the 'try' block, this code runs.
+console.error("Error fetching quote:", error);
+quoteTextElement.textContent = "Oops! Couldn't fetch a quote. Please try again.";
+quoteAuthorElement.textContent = "";
+} finally {
+// This code runs whether the fetch was successful or not.
+// Fade the new text back in after a short delay to allow the text to update
 setTimeout(() => {
-// Update the text content of the elements
-quoteTextElement.textContent = `"${randomQuote.text}"`;
-quoteAuthorElement.textContent = `- ${randomQuote.author}`;
-// Fade the new text back in
 quoteTextElement.style.opacity = 1;
 quoteAuthorElement.style.opacity = 1;
-}, 500); // This delay should match the transition duration in the CSS
+// Re-enable the button
+newQuoteBtn.disabled = false;
+}, 200);
+}
 }
 
 // 4. Add an event listener to the button. When clicked, it will run our function.
-newQuoteBtn.addEventListener('click', displayNewQuote);
+newQuoteBtn.addEventListener('click', getNewQuote);
 
 // 5. Display a quote when the page first loads.
-document.addEventListener('DOMContentLoaded', displayNewQuote);
+document.addEventListener('DOMContentLoaded', getNewQuote);
 
 </script>
 
