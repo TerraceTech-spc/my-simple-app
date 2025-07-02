@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Quote Generator</title>
+<!-- Tailwind CSS for styling -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Inter font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body {
+font-family: 'Inter', sans-serif;
+}
+</style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
+
+<!-- Main container for the quote generator -->
+<div class="w-full max-w-2xl mx-auto p-6 md:p-8 bg-gray-800 rounded-2xl shadow-2xl text-center">
+
+<!-- Header -->
+<h1 class="text-3xl md:text-4xl font-bold text-cyan-400 mb-6">Random Quote Generator</h1>
+
+<!-- Quote Display Area -->
+<div class="min-h-[150px] flex flex-col justify-center">
+<blockquote id="quote-text" class="text-xl md:text-2xl italic text-gray-200 transition-opacity duration-500">
+<!-- Quote will be inserted here by JavaScript -->
+</blockquote>
+<p id="quote-author" class="mt-4 text-lg text-cyan-500 font-semibold transition-opacity duration-500">
+<!-- Author will be inserted here by JavaScript -->
+</p>
+</div>
+
+<!-- Button to generate a new quote -->
+<button id="new-quote-btn" class="mt-8 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-75">
+New Quote
+</button>
+
+</div>
+
+<script>
+// --- JavaScript for the Quote Generator ---
+
+// 1. Get references to the HTML elements we need to interact with.
+const quoteTextElement = document.getElementById('quote-text');
+const quoteAuthorElement = document.getElementById('quote-author');
+const newQuoteBtn = document.getElementById('new-quote-btn');
+
+// 2. Create an array of quote objects. Each object has a text and an author.
+const quotes = [
+{ text: "The purpose of our lives is to be happy.", author: "Dalai Lama" },
+{ text: "Life is what happens when you're busy making other plans.", author: "John Lennon" },
+{ text: "Get busy living or get busy dying.", author: "Stephen King" },
+{ text: "You only live once, but if you do it right, once is enough.", author: "Mae West" },
+{ text: "Many of life's failures are people who did not realize how close they were to success when they gave up.", author: "Thomas A. Edison" },
+{ text: "If you want to live a happy life, tie it to a goal, not to people or things.", author: "Albert Einstein" },
+{ text: "Never let the fear of striking out keep you from playing the game.", author: "Babe Ruth" },
+{ text: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
+{ text: "In order to write about life first you must live it.", author: "Ernest Hemingway" },
+{ text: "The big lesson in life, baby, is never be scared of anyone or anything.", author: "Frank Sinatra" }
+];
+
+let lastQuoteIndex = -1; // To make sure we don't show the same quote twice in a row
+
+// 3. Function to get a new random quote and display it.
+function displayNewQuote() {
+let randomIndex;
+// Keep generating a random index until it's different from the last one
+do {
+randomIndex = Math.floor(Math.random() * quotes.length);
+} while (randomIndex === lastQuoteIndex);
+
+lastQuoteIndex = randomIndex; // Update the last index
+
+const randomQuote = quotes[randomIndex];
+
+// Add a fade-out effect before changing the text
+quoteTextElement.style.opacity = 0;
+quoteAuthorElement.style.opacity = 0;
+
+setTimeout(() => {
+// Update the text content of the elements
+quoteTextElement.textContent = `"${randomQuote.text}"`;
+quoteAuthorElement.textContent = `- ${randomQuote.author}`;
+// Fade the new text back in
+quoteTextElement.style.opacity = 1;
+quoteAuthorElement.style.opacity = 1;
+}, 500); // This delay should match the transition duration in the CSS
+}
+
+// 4. Add an event listener to the button. When clicked, it will run our function.
+newQuoteBtn.addEventListener('click', displayNewQuote);
+
+// 5. Display a quote when the page first loads.
+document.addEventListener('DOMContentLoaded', displayNewQuote);
+
+</script>
+
+</body>
+</html>
